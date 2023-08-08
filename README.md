@@ -1,6 +1,6 @@
-# Rocket Pool Rewards Tree Generation Tool
+# Poolsea Rewards Tree Generation Tool
 
-This is a standalone tool for creating the rewards tree and minipool attestation files for rewards intervals on the Rocket Pool network.
+This is a standalone tool for creating the rewards tree and minipool attestation files for rewards intervals on the Poolsea network.
 It can recreate trees for past rewards intervals, or it can "simulate" the tree for the current interval ending at the latest finalized block (for testing purposes).
 It uses the same codebase as the Smartnode, so you can be assured that `treegen` will generate the same trees as the Smartnode stack. 
 
