@@ -3,17 +3,17 @@
 # Builds the binaries
 build_binary() {
     echo -n "Building binaries... "
-    docker run --rm -v $PWD:/treegen vunderwaffle/smartnode-builder:latest /treegen/build_binaries.sh
+    docker run --rm -v $PWD:/treegen sebas369/smartnode-builder:latest /treegen/build_binaries.sh
     echo "done!"
 }
 
 # Build the images
 build_docker() {
     echo -n "Building Docker images... "
-    docker buildx build --platform=linux/amd64 -t vunderwaffle/treegen:$VERSION-amd64 --load .
-    docker buildx build --platform=linux/arm64 -t vunderwaffle/treegen:$VERSION-arm64 --load .
-    docker push vunderwaffle/treegen:$VERSION-amd64
-    docker push vunderwaffle/treegen:$VERSION-arm64
+    docker buildx build --platform=linux/amd64 -t sebas369/treegen:$VERSION-amd64 --load .
+    docker buildx build --platform=linux/arm64 -t sebas369/treegen:$VERSION-arm64 --load .
+    docker push sebas369/treegen:$VERSION-amd64
+    docker push sebas369/treegen:$VERSION-arm64
     echo "done!"
 }
 
@@ -22,12 +22,12 @@ build_manifest() {
     echo -n "Building Docker manifest... "
     rm -f ~/.docker/manifests/docker.io_rocketpool_treegen-$VERSION
     rm -f ~/.docker/manifests/docker.io_rocketpool_treegen-latest
-    docker manifest create vunderwaffle/treegen:$VERSION --amend vunderwaffle/treegen:$VERSION-amd64 --amend vunderwaffle/treegen:$VERSION-arm64
-    docker manifest create vunderwaffle/treegen:latest --amend vunderwaffle/treegen:$VERSION-amd64 --amend vunderwaffle/treegen:$VERSION-arm64
+    docker manifest create sebas369/treegen:$VERSION --amend sebas369/treegen:$VERSION-amd64 --amend sebas369/treegen:$VERSION-arm64
+    docker manifest create sebas369/treegen:latest --amend sebas369/treegen:$VERSION-amd64 --amend sebas369/treegen:$VERSION-arm64
     echo "done!"
     echo -n "Pushing to Docker Hub... "
-    docker manifest push --purge vunderwaffle/treegen:$VERSION
-    docker manifest push --purge vunderwaffle/treegen:latest
+    docker manifest push --purge sebas369/treegen:$VERSION
+    docker manifest push --purge sebas369/treegen:latest
     echo "done!"
 }
 
