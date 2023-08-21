@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	version    string = "1.4.0"
+	version    string = "1.3.0"
 	colorReset string = "\033[0m"
 	colorRed   string = "\033[31m"
 )
@@ -87,12 +87,6 @@ func main() {
 			Name:    "approximate-only",
 			Aliases: []string{"a"},
 			Usage:   "Approximates the rETH stakers' share of the Smoothing Pool at the current or target block instead of generating the entire rewards tree.",
-			Value:   false,
-		},
-		&cli.BoolFlag{
-			Name:    "use-rolling-records",
-			Aliases: []string{"rr"},
-			Usage:   "Enable the rolling record capability of the Smartnode tree generator. Use this to store and load record caches instead of recalculating attestation performance each time you run treegen.",
 			Value:   false,
 		},
 		&cli.StringFlag{

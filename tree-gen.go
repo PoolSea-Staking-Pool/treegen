@@ -2,14 +2,13 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math/big"
 	"net/http"
 	"os"
 	"path/filepath"
 	"time"
-
-	"github.com/goccy/go-json"
 
 	"github.com/Seb369888/poolsea-go/rewards"
 	"github.com/Seb369888/poolsea-go/rocketpool"
@@ -38,7 +37,6 @@ type snapshotDetails struct {
 	index                 uint64
 	startTime             time.Time
 	endTime               time.Time
-	startSlot             uint64
 	snapshotBeaconBlock   uint64
 	snapshotElBlockHeader *types.Header
 	intervalsPassed       uint64
@@ -75,9 +73,6 @@ type treegenArguments struct {
 	// Index of the rewards period
 	index uint64
 
-	// The first slot in the period
-	startSlot uint64
-
 	// Consensus end block
 	block *beacon.BeaconBlock
 
@@ -87,19 +82,16 @@ type treegenArguments struct {
 
 // Treegen holder for the requested execution metadata and necessary artifacts
 type treeGenerator struct {
-	log    log.ColorLogger
-	errLog log.ColorLogger
-	rp     *rocketpool.RocketPool
-	cfg    *config.RocketPoolConfig
-	mgr    *state.NetworkStateManager
-	//recordMgr         *rprewards.RollingRecordManager
-	bn                beacon.Client
-	beaconConfig      beacon.Eth2Config
-	targets           targets
-	outputDir         string
-	prettyPrint       bool
-	ruleset           uint64
-	useRollingRecords bool
+	log          *log.ColorLogger
+	rp           *rocketpool.RocketPool
+	cfg          *config.RocketPoolConfig
+	mgr          *state.NetworkStateManager
+	bn           beacon.Client
+	beaconConfig beacon.Eth2Config
+	targets      targets
+	outputDir    string
+	prettyPrint  bool
+	ruleset      uint64
 }
 
 // Generates a new rewards tree based on the command line flags
@@ -110,8 +102,7 @@ func GenerateTree(c *cli.Context) error {
 	// Initialization
 	interval := c.Int64("interval")
 	targetEpoch := c.Uint64("target-epoch")
-	logger := log.NewColorLogger(color.FgHiWhite)
-	errLogger := log.NewColorLogger(color.FgRed)
+	log := log.NewColorLogger(color.FgHiWhite)
 
 	// URL acquisiton
 	ecUrl := c.String("ec-endpoint")
@@ -143,13 +134,10 @@ func GenerateTree(c *cli.Context) error {
 	switch depositContract.ChainID {
 	case 1:
 		network = cfgtypes.Network_Mainnet
-		logger.Printlnf("Beacon node is configured for Mainnet.")
+		log.Printlnf("Beacon node is configured for Mainnet.")
 	case 5:
 		network = cfgtypes.Network_Prater
-		logger.Printlnf("Beacon node is configured for Prater.")
-	case 943:
-		network = cfgtypes.Network_PulseV4
-		logger.Printlnf("Beacon node is configured for Pulsechain testnet v4.")
+		log.Printlnf("Beacon node is configured for Prater.")
 	default:
 		return fmt.Errorf("your Beacon node is configured for an unknown network with Chain ID [%d]", depositContract.ChainID)
 	}
@@ -166,24 +154,22 @@ func GenerateTree(c *cli.Context) error {
 	}
 
 	// Create the NetworkStateManager
-	mgr, err := state.NewNetworkStateManager(rp, cfg, rp.Client, bn, &logger)
+	mgr, err := state.NewNetworkStateManager(rp, cfg, rp.Client, bn, &log)
 	if err != nil {
 		return err
 	}
 
 	// Create the generator
 	generator := treeGenerator{
-		log:               logger,
-		errLog:            errLogger,
-		rp:                rp,
-		cfg:               cfg,
-		bn:                bn,
-		mgr:               mgr,
-		beaconConfig:      beaconConfig,
-		outputDir:         c.String("output-dir"),
-		prettyPrint:       c.Bool("pretty-print"),
-		ruleset:           c.Uint64("ruleset"),
-		useRollingRecords: c.Bool("use-rolling-records"),
+		log:          &log,
+		rp:           rp,
+		cfg:          cfg,
+		bn:           bn,
+		mgr:          mgr,
+		beaconConfig: beaconConfig,
+		outputDir:    c.String("output-dir"),
+		prettyPrint:  c.Bool("pretty-print"),
+		ruleset:      c.Uint64("ruleset"),
 	}
 
 	// initialize the generator targets
@@ -214,20 +200,6 @@ func (g *treeGenerator) getTreegenArgs() (*treegenArguments, error) {
 
 	// If we have a rewardsEvent, we're generating a full interval
 	if g.targets.rewardsEvent != nil {
-		index := g.targets.rewardsEvent.Index.Uint64()
-		startSlot := uint64(0)
-		if index > 0 {
-			// Get the start slot for this interval
-			previousRewardsEvent, err := rprewards.GetRewardSnapshotEvent(g.rp, g.cfg, uint64(index-1))
-			if err != nil {
-				return nil, fmt.Errorf("error getting event for interval %d: %w", index-1, err)
-			}
-			startSlot, err = getStartSlotForInterval(previousRewardsEvent, g.bn, g.beaconConfig)
-			if err != nil {
-				return nil, fmt.Errorf("error getting start slot for interval %d: %w", index, err)
-			}
-		}
-
 		elBlockHeader, err := g.rp.Client.HeaderByNumber(context.Background(), g.targets.rewardsEvent.ExecutionBlock)
 		if err != nil {
 			return nil, fmt.Errorf("error getting el block header %d: %w", g.targets.rewardsEvent.ExecutionBlock.Uint64(), err)
@@ -235,9 +207,8 @@ func (g *treeGenerator) getTreegenArgs() (*treegenArguments, error) {
 		return &treegenArguments{
 			startTime:       g.targets.rewardsEvent.IntervalStartTime,
 			endTime:         g.targets.rewardsEvent.IntervalEndTime,
-			index:           index,
+			index:           g.targets.rewardsEvent.Index.Uint64(),
 			intervalsPassed: g.targets.rewardsEvent.IntervalsPassed.Uint64(),
-			startSlot:       startSlot,
 			block:           g.targets.block,
 			elBlockHeader:   elBlockHeader,
 			state:           state,
@@ -250,14 +221,13 @@ func (g *treeGenerator) getTreegenArgs() (*treegenArguments, error) {
 		endTime:         g.targets.snapshotDetails.endTime,
 		index:           g.targets.snapshotDetails.index,
 		intervalsPassed: g.targets.snapshotDetails.intervalsPassed,
-		startSlot:       g.targets.snapshotDetails.startSlot,
 		block:           g.targets.block,
 		elBlockHeader:   g.targets.snapshotDetails.snapshotElBlockHeader,
 		state:           state,
 	}, nil
 }
 
-func (d *snapshotDetails) log(l log.ColorLogger) {
+func (d *snapshotDetails) log(l *log.ColorLogger) {
 	l.Printlnf("Snapshot Beacon block = %d, EL block = %d, running from %s to %s\n",
 		d.snapshotBeaconBlock,
 		d.snapshotElBlockHeader.Number.Uint64(),
@@ -368,11 +338,10 @@ func (g *treeGenerator) setTargets(interval int64, targetEpoch uint64) error {
 	// We're generating a partial interval
 	// Ensure the target slot happens *before* the end of the interval
 	eventBlock := rewardsEvent.ConsensusBlock.Uint64()
-	finalEpochOfInterval := eventBlock / g.beaconConfig.SlotsPerEpoch
-	if targetEpoch == finalEpochOfInterval {
+	if targetEpoch == eventBlock/g.beaconConfig.SlotsPerEpoch {
 		return fmt.Errorf("target epoch %d was the end of the targeted interval %d.\nRerun without -t", targetEpoch, interval)
 	}
-	if targetEpoch > finalEpochOfInterval {
+	if targetEpoch > eventBlock/g.beaconConfig.SlotsPerEpoch {
 		return fmt.Errorf("target epoch %d was after targeted interval %d", targetEpoch, interval)
 	}
 
@@ -382,15 +351,14 @@ func (g *treeGenerator) setTargets(interval int64, targetEpoch uint64) error {
 		return fmt.Errorf("target epoch %d was before targeted interval %d", targetEpoch, interval)
 	}
 
-	// Cache the target block for later use
-	block, found, err := g.bn.GetBeaconBlock(fmt.Sprint(eventBlock))
+	// Cache the last block in the target epoch for later use
+	g.targets.block, err = g.lastBlockInEpoch(targetEpoch)
 	if err != nil {
 		return err
 	}
-	if !found {
-		return fmt.Errorf("Unable to find the ending block for interval %d (slot %d). Was your BN checkpoint synced against a slot that occurred after this epoch?", interval, eventBlock)
+	if g.targets.block == nil {
+		return fmt.Errorf("Unable to find any valid blocks in epoch %d. Was your BN checkpoint synced against a slot that occurred after this epoch?", targetEpoch)
 	}
-	g.targets.block = &block
 
 	g.targets.snapshotDetails, err = g.getSnapshotDetails()
 	if err != nil {
@@ -480,92 +448,10 @@ func (g *treeGenerator) writeFiles(rewardsFile *rprewards.RewardsFile) error {
 	return nil
 }
 
-// Create the manager for rolling records to use (if applicable) and update the record to the target slot
-func (g *treeGenerator) prepareRecordManager(args *treegenArguments) error {
-	// Ignore this on old rulesets without rolling records
-	if g.ruleset < 6 && g.ruleset > 0 {
-		g.log.Printlnf("Ruleset %d does not use rolling records, ignoring them.", g.ruleset)
-		return nil
-	}
-
-	// Get the target index
-	ignoreRollingRecords := false
-	var index uint64
-	if g.targets.rewardsEvent != nil {
-		index = g.targets.rewardsEvent.Index.Uint64()
-	} else {
-		index = g.targets.snapshotDetails.index
-	}
-
-	// Ignore rolling records for the first interval
-	if index == 0 {
-		g.log.Println("Interval 0 cannot use rolling records because there was no previous event to indicate when to start collecting records, ignoring them.")
-		return nil
-	}
-
-	// If a ruleset isn't specified, check if the interval is before v6
-	if g.ruleset == 0 {
-		network := g.cfg.Smartnode.Network.Value.(cfgtypes.Network)
-		switch network {
-		case cfgtypes.Network_Prater:
-			ignoreRollingRecords = (index < rprewards.PraterV5Interval)
-		case cfgtypes.Network_Mainnet:
-			ignoreRollingRecords = (index < rprewards.MainnetV5Interval)
-		case cfgtypes.Network_PulseV4:
-			ignoreRollingRecords = false
-		default:
-			return fmt.Errorf("unknown network [%v]", network)
-		}
-	}
-
-	// Ignore this on old intervals without rolling records
-	if ignoreRollingRecords {
-		g.log.Printlnf("Rewards interval %d cannot use rolling records because it used an older ruleset, ignoring them.", index)
-		return nil
-	}
-
-	// Rolling records are supported, build up the manager
-	//var err error
-	//g.recordMgr, err = rprewards.NewRollingRecordManager(g.log, g.errLog, g.cfg, g.rp, g.bn, g.mgr, args.startSlot, g.beaconConfig, index)
-	//if err != nil {
-	//	return fmt.Errorf("error creating rolling record manager: %w", err)
-	//}
-
-	// Determine the target slot for tree generation
-	//var targetSlot uint64
-	//if g.targets.rewardsEvent != nil {
-	//	targetSlot = g.targets.rewardsEvent.ConsensusBlock.Uint64()
-	//} else {
-	//	targetSlot = g.targets.snapshotDetails.snapshotBeaconBlock
-	//}
-
-	// Create and update the record to that slot
-	g.log.Printlnf("Generation supports rolling records - creating a new record manager.")
-	//record, err := g.recordMgr.GenerateRecordForState(args.state)
-	//if err != nil {
-	//	return fmt.Errorf("error creating record for slot %d: %w", targetSlot, err)
-	//}
-	//g.recordMgr.Record = record
-
-	return nil
-}
-
 // Creates a tree generator using the provided arguments
 func (g *treeGenerator) getGenerator(args *treegenArguments) (*rprewards.TreeGenerator, error) {
-	// Prepare the rolling record manager and record if applicable
-	if g.useRollingRecords {
-		g.log.Println("Rolling records are enabled, preparing rolling manager.")
-		err := g.prepareRecordManager(args)
-		if err != nil {
-			return nil, fmt.Errorf("error preparing rolling record: %w", err)
-		}
-	} else {
-		g.log.Println("Rolling records are not enabled, ignoring them.")
-	}
-
-	// Create the tree generator
 	out, err := rprewards.NewTreeGenerator(
-		g.log, "", g.rp, g.cfg, g.bn, args.index,
+		*g.log, "", g.rp, g.cfg, g.bn, args.index,
 		args.startTime, args.endTime, args.block.Slot, args.elBlockHeader,
 		args.intervalsPassed, args.state)
 	if err != nil {
@@ -697,20 +583,6 @@ func (g *treeGenerator) getSnapshotDetails() (*snapshotDetails, error) {
 	}
 	index := indexBig.Uint64()
 
-	// Get the start slot
-	startSlot := uint64(0)
-	if index > 0 {
-		// Get the start slot for this interval
-		previousRewardsEvent, err := rprewards.GetRewardSnapshotEvent(g.rp, g.cfg, uint64(index-1))
-		if err != nil {
-			return nil, fmt.Errorf("error getting event for interval %d: %w", index-1, err)
-		}
-		startSlot, err = getStartSlotForInterval(previousRewardsEvent, g.bn, g.beaconConfig)
-		if err != nil {
-			return nil, fmt.Errorf("error getting start slot for interval %d: %w", index, err)
-		}
-	}
-
 	// Get the start time for the interval, and how long an interval is supposed to take
 	startTime, err := rewards.GetClaimIntervalTimeStart(g.rp, &opts)
 	if err != nil {
@@ -730,42 +602,10 @@ func (g *treeGenerator) getSnapshotDetails() (*snapshotDetails, error) {
 		index:                 index,
 		startTime:             startTime,
 		endTime:               endTime,
-		startSlot:             startSlot,
 		snapshotBeaconBlock:   g.targets.block.Slot,
 		snapshotElBlockHeader: snapshotElBlockHeader,
 		intervalsPassed:       intervalsPassed,
 	}, nil
-}
-
-// Gets the start slot for the given interval
-func getStartSlotForInterval(previousIntervalEvent rewards.RewardsEvent, bc beacon.Client, beaconConfig beacon.Eth2Config) (uint64, error) {
-	// Sanity check to confirm the BN can access the block from the previous interval
-	_, exists, err := bc.GetBeaconBlock(previousIntervalEvent.ConsensusBlock.String())
-	if err != nil {
-		return 0, fmt.Errorf("error verifying block from previous interval: %w", err)
-	}
-	if !exists {
-		return 0, fmt.Errorf("couldn't retrieve CL block from previous interval (slot %d); this likely means you checkpoint sync'd your Beacon Node and it has not backfilled to the previous interval yet so it cannot be used for tree generation", previousIntervalEvent.ConsensusBlock.Uint64())
-	}
-
-	previousEpoch := previousIntervalEvent.ConsensusBlock.Uint64() / beaconConfig.SlotsPerEpoch
-	nextEpoch := previousEpoch + 1
-	consensusStartBlock := nextEpoch * beaconConfig.SlotsPerEpoch
-
-	// Get the first block that isn't missing
-	for {
-		_, exists, err := bc.GetBeaconBlock(fmt.Sprint(consensusStartBlock))
-		if err != nil {
-			return 0, fmt.Errorf("error getting EL data for BC slot %d: %w", consensusStartBlock, err)
-		}
-		if !exists {
-			consensusStartBlock++
-		} else {
-			break
-		}
-	}
-
-	return consensusStartBlock, nil
 }
 
 // Print information about the current network and interval info
