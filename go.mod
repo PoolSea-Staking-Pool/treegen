@@ -62,8 +62,6 @@ require (
 
 replace github.com/wealdtech/go-merkletree v1.0.1-0.20190605192610-2bb163c2ea2a => github.com/rocket-pool/go-merkletree v1.0.1-0.20220406020931-c262d9b976dd
 
-replace github.com/ethereum/go-ethereum v1.10.26 => gitlab.com/pulsechaincom/go-pulse v0.0.0-20221103105933-e5eb32acee19
-
 // replace github.com/Seb369888/smartnode => ../smartnode
 
 // replace github.com/Seb369888/poolsea-go => ../rocketpool-go
