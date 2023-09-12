@@ -1,3 +1,5 @@
 *.json
 treegen
 Releases/
+vendor
+.idea
