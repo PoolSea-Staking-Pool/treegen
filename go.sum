@@ -1,8 +1,8 @@
 github.com/BurntSushi/toml v1.2.1/go.mod h1:CxXYINrC8qIiEnFrOxCa7Jy5BFHlXnUU2pbicEuybxQ=
 github.com/Seb369888/poolsea-go v0.6.5 h1:FP1tUgiydC+wawJ0zteqMccwMN1cKgikPrElzTol4FE=
 github.com/Seb369888/poolsea-go v0.6.5/go.mod h1:De21JdHniEGMoPWLLt7V27OriCBLPiSkMYctRqfaUBo=
-github.com/Seb369888/smartnode v1.0.1 h1:cuwvDNmseO8skFXsTtzNKDkKNk9qSAudiwPhrfVg0jU=
-github.com/Seb369888/smartnode v1.0.1/go.mod h1:fpV3aXHCzwVapEM1bgzL5i9L2Y30uHWDSN0eHnVlOVI=
+github.com/Seb369888/smartnode v1.0.3 h1:ItRmFsaFVcdTLdbVGuddJDzrggbhyWMWoL4j+OxeCeE=
+github.com/Seb369888/smartnode v1.0.3/go.mod h1:fpV3aXHCzwVapEM1bgzL5i9L2Y30uHWDSN0eHnVlOVI=
 github.com/VictoriaMetrics/fastcache v1.10.0 h1:5hDJnLsKLpnUEToub7ETuRu8RCkb40woBZAUiKonXzY=
 github.com/alessio/shellescape v1.4.1 h1:V7yhSDDn8LP4lc4jS8pFkt0zCnzVJlG5JXy9BVKJUX0=
 github.com/alessio/shellescape v1.4.1/go.mod h1:PZAiSCk0LJaZkiCSkPv8qIobYglO3FPpyFjDCtHLS30=
