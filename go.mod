@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/Seb369888/poolsea-go v0.6.5
-	github.com/Seb369888/smartnode v1.0.6
+	github.com/Seb369888/smartnode v1.0.8
 	github.com/ethereum/go-ethereum v1.10.26
 	github.com/fatih/color v1.14.1
 	github.com/urfave/cli/v2 v2.23.0
