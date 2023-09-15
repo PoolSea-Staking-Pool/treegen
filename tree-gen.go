@@ -141,6 +141,9 @@ func GenerateTree(c *cli.Context) error {
 	case 943:
 		network = cfgtypes.Network_PulseV4
 		log.Printlnf("Beacon node is configured for PulseV4.")
+	case 369:
+		network = cfgtypes.Network_Pulsechain
+		log.Printlnf("Beacon node is configured for Pulsechain.")
 	default:
 		return fmt.Errorf("your Beacon node is configured for an unknown network with Chain ID [%d]", depositContract.ChainID)
 	}
